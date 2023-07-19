@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vdl-client
+
+spec:
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: web
+      name: web
+      nodePort: 30000
+  selector:
+    app: vdl-client
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: vdl-client
+  labels:
+    app: vdl-client
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vdl-client
+  template:
+    metadata:
+      labels:
+        app: vdl-client
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: primary-node
+      containers:
+        - name: client
+          image: us.gcr.io/video-download-service/vid-dl-client:latest
+          imagePullPolicy: Always
+          ports:
+            - name: web
+              containerPort: 8080
+          volumeMounts:
+          - name: gcp-key
+            mountPath: /var/secrets/google
+          env:
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /var/secrets/google/key.json
+          - name: GCP_PROJECT
+            value: video-download-service
+          - name: REDIS_HOST
+            value: vdl-redis
+          - name: GCP_TOPIC_ID
+            value: vdl-primary-topic
+          - name: DOWNLOAD_HOST
+            # TODO: Config after resources are made
+            value: ""
+      volumes:
+      - name: gcp-key
+        secret:
+          secretName: service-key

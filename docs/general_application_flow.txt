@@ -1,0 +1,39 @@
+title General Application Flow
+
+actor User
+boundary Client
+control PubSub
+entity Listener
+database Redis
+database Bucket
+
+parallel
+User->Client:Submit video url
+Listener->PubSub:Polling subscriber for new messages
+parallel off
+
+Client->PubSub:Submit download message
+note over Client,PubSub: Message should include the source url\nand some unique identifier the client \ncan reference later
+PubSub-xClient:Topic publish error
+Client-xUser:Show error page
+PubSub->PubSub:Distribute to pull subscriber
+PubSub->Listener:Ack message
+note right of Listener:Listener can be scaled to handle message volume\nand unacked messages can be deadlettered
+
+Client->User:Show loading page
+
+Client->Redis:Begin polling for download results
+activate Client
+Listener->Bucket:Attempt download
+
+Bucket-xListener:On failure capture error status
+Listener->Redis:Write download results
+note over Listener,Redis:Download results should be \nkeyed with the original unique identifier\nand contain the status and location if complete.\nTTL should be short
+
+Client->Redis:Read download results and stop polling
+deactivate Client
+
+Client->User:Show download location
+note right of Client:Download url should be signed\nto authorize short term access to\nthe bucket
+
+Client-xUser:Show error page on failed status

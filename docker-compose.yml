@@ -1,0 +1,68 @@
+version: '3'
+
+services:
+
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:latest
+    command: gcloud beta emulators pubsub start --project=${GCP_PROJECT} --host-port=${PUBSUB_EMULATOR_HOST}
+
+  init-pubsub:
+    image: pubsub-utils
+    command: python create.py
+    build:
+      context: pubsub
+    depends_on:
+      pubsub:
+        condition: service_started
+    restart: "no"
+    env_file:
+      - .env
+
+  subscriber:
+    image: vdl-subscriber
+    build:
+      context: subscriber
+    depends_on:
+      init-pubsub:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    volumes:
+      - ~/.config/gcloud:/root/.config/gcloud
+
+  redis:
+    image: redis:alpine
+
+  client:
+    # This image does not run on deploy and is only used for
+    # hot reloading on local dev
+    image: cosmtrek/air
+    env_file:
+      - .env
+    environment:
+      - air_wd=/app
+      - GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/google/key.json
+    working_dir: /app
+    # Bucket url signing is only supported from service accounts
+    # and impersonating my defualt creds doesn't seem to work entirely
+    # with it, so I gave up and just pull and mount a key directly
+    volumes:
+      - ./client:/app
+      - ./secrets:/var/secrets/google
+    ports:
+      - "8080:8080"
+
+  # Not sure if this should stick around for local dev
+  # as it's a bit hacky and doesn't support all bucket features
+  # and it's easy/cheap to use an actual bucket  ¯\_(ツ)_/¯
+  # bucket:
+  #   image: fsouza/fake-gcs-server
+  #   ports:
+  #     - 4443:4443
+
+  # init-bucket:
+  #   image: google/cloud-sdk:slim
+  #   command: gsutil -o "Credentials:gs_json_host=bucket" -o "Credentials:gs_json_port=4443" -o "Boto:https_validate_certificates=False" mb -p ${GCP_PROJECT} gs://${GCP_BUCKET}
+  #   depends_on:
+  #     bucket:
+  #       condition: service_started

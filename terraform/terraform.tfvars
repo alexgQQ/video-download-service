@@ -1,0 +1,6 @@
+gke_project          = "video-download-service"
+gke_zone             = "us-central1-a"
+gke_region           = "us-central1"
+cloudflare_api_token = ""
+cloudflare_zone_id   = ""
+cloudflare_domain    = "alexgrand.dev"

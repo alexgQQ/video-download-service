@@ -1,0 +1,42 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: vdl-worker
+  labels:
+    app: vdl-worker
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vdl-worker
+  template:
+    metadata:
+      labels:
+        app: vdl-worker
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: primary-node
+      containers:
+        - name: subscriber
+          image: us.gcr.io/video-download-service/vdl-subscriber:latest
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: gcp-key
+            mountPath: /var/secrets/google
+          env:
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /var/secrets/google/key.json
+          - name: GCP_PROJECT
+            value: video-download-service
+          - name: REDIS_HOST
+            value: vdl-redis
+          - name: GCP_SUBSCRIBER_ID
+            value: vdl-primary-subscription
+          - name: BUCKET_NAME
+            # TODO: Config after resources are made
+            value: ""
+      volumes:
+      - name: gcp-key
+        secret:
+          secretName: service-key

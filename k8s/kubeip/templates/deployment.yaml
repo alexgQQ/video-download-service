@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubeip.name" . }}
+  labels:
+    {{- include "kubeip.labels" . | nindent 4 }}
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kubeip.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "kubeip.selectorLabels" . | nindent 8 }}
+    spec:
+      priorityClassName: system-cluster-critical
+      nodeSelector:
+        cloud.google.com/gke-nodepool: {{ .Values.cluster.kubeip_nodepool }}
+      containers:
+      - name: kubeip
+        image: {{ .Values.image.repository }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        volumeMounts:
+        - name: google-cloud-key
+          mountPath: /var/secrets/google
+        env:
+          {{- range $key, $val := .Values.env_config }}
+        - name: {{ $key }}
+          value: {{ $val | quote }}
+          {{- end }}
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/secrets/google/key.json
+      restartPolicy: Always
+      serviceAccountName: {{ include "kubeip.name" . }}-sa
+      volumes:
+        - name: google-cloud-key
+          secret:
+            secretName: {{ include "kubeip.name" . }}-key
